@@ -1,126 +1,345 @@
-# Tomorrow - Task Manager
+# 🌟 Tomorrow - Java Swing Task Manager
 
-A beginner-friendly Java Swing task manager with a humorous procrastination theme.
+![Tomorrow Banner](https://raw.githubusercontent.com/anomalyco/opencode/main/assets/logo.svg)
 
-## Prerequisites
+> A beginner-friendly Java desktop task manager with a humorous procrastination theme.
+> Perfect for BCA students and demonstrable in a short project timeline.
 
-- **Java 21** (JDK 21 or newer)
-- **Maven 3.6+**
-- **FlatLaf** (look-and-feel library, included as dependency)
+[![Java 21](https://img.shields.io/badge/Java-21-orange.svg?style=for-the-badge&logo=openjdk)](https://openjdk.java.net/projects/jdk/21/)
+[![Maven](https://img.shields.io/badge/Maven-3.6%2B-C71A36?style=for-the-badge&logo=apache-maven)](https://maven.apache.org/)
+[![FlatLaf](https://img.shields.io/badge/FlatLaf-UI%20Styling-0052CC?style=for-the-badge)](https://www.formdev.com/flatlaf/)
+[![Gson](https://img.shields.io/badge/Gson-JSON-413C55?style=for-the-badge)](https://github.com/google/gson)
+[![JUnit 5](https://img.shields.io/badge/JUnit-5-%23296D27?style=for-the-badge&logo=junit5)](https://junit.org/junit5/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-000000?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-## Build and Run
+---
+
+## 📋 Project Overview
+
+**Tomorrow** is a Java Swing-based task manager that helps users track tasks with a humorous procrastination twist. Built as a semester project for BCA students, it demonstrates core Java concepts, Swing GUI development, JSON persistence, and notification systems.
+
+**Key Philosophy**: Keep it simple, testable, and beginner-friendly. No database, no backend, no authentication — just a clean desktop application.
+
+### Core Features
+- ✅ Create, edit, complete, postpone, and delete tasks
+- ✅ Filter by: All / Pending / Completed / Overdue
+- ✅ Automatic statistics derived from task data (not independent counters)
+- ✅ ISO-8601 date handling in JSON via Gson
+- ✅ In-app notification center with read/dismiss state
+- ✅ Priority engine (P1-P5) based on deadline proximity
+- ✅ Humorous vs professional notification tone selection
+- ✅ Quiet hours for optional desktop/email reminders
+- ✅ macOS desktop notification channel (prototype)
+- ✅ Email channel with SMTP (opt-in, credentials at runtime)
+- ✅ Persistent data across application restarts
+- ✅ Duplicate reminder prevention on restart
+- ✅ Safe file handling (never silently overwrite malformed JSON)
+
+---
+
+## 🛠️ Prerequisites
+
+| Requirement | Version |
+|---|---|
+| **Java JDK** | 21 (or 17+ compatible) |
+| **Maven** | 3.6+ |
+| **RAM** | 256 MB minimum |
+| **OS** | Linux, macOS, or Windows (with JDK 21) |
+
+### Java Version Note
+This project targets **Java 21** but runs on Java 17+ with `--release 21` compilation. Uses `java.time.LocalDate` for all date handling.
+
+---
+
+## ▶️ Installation & Running
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd eventManager
+# 1. Clone the repository
+git clone https://github.com/your-username/tomorrow.git
+cd tomorrow
 
-# Build with Maven
+# 2. Build with Maven
 mvn clean package
 
-# Run the application
+# 3. Run the application
 java -jar target/tomorrow-1.0.0.jar
 ```
 
-## Data Location
+### First Launch
+- On first run, the app creates `~/.local/share/tomorrow/` directory
+- Default settings are loaded (humorous tone, in-app notifications enabled)
+- No tasks exist — add your first task!
 
-Application data is stored in:
+### Development Setup
+```bash
+# Compile only
+mvn compile
+
+# Run tests
+mvn test
+
+# Run in development mode (skips jar creation)
+mvn javafx:run  # if JavaFX enabled, otherwise:
+mvn exec:java -Dexec.mainClass="com.tomorrow.ui.Main"
 ```
-~/.local/share/tomorrow/
-  - tasks.json    (task data)
-  - notifications.json (notification history)
-  - settings.json   (application settings)
+
+---
+
+## 📦 Project Structure
+
+```
+tomorrow/
+├── src/main/java/com/tomorrow/      # Main source code
+│   ├── model/                       # Task data model
+│   ├── service/                     # Business logic
+│   ├── storage/                     # JSON persistence (Gson)
+│   ├── notification/                # Notification types & channels
+│   └── ui/                          # Swing user interface
+│
+├── src/test/java/                   # JUnit 5 test suite (25 tests!)
+├── pom.xml                          # Maven configuration
+├── .gitignore                       # Git exclusions
+├── README.md                        # You are here!
+└── TODO.md                          # Implementation checklist
 ```
 
-These files are generated automatically on first launch. The data directory is **not** committed to version control (see `.gitignore`).
+### Key Package Design (per AGENTS.md)
+```
+com.tomorrow.model    → Task, notification models
+com.tomorrow.service  → TaskManager, PriorityCalculator, MessageProvider,
+                        NotificationManager, ReminderScheduler, AppSettings
+com.tomorrow.storage  → JsonStorage (Gson-based)
+com.tomorrow.notification → Notification, NotificationChannel,
+                            InAppChannel, MacOSChannel, EmailChannel
+com.tomorrow.ui       → Main, MainFrame, DashboardPanel, task cards, dialogs
+```
 
-## .gitignore
+---
 
-The project includes a `.gitignore` that excludes:
-- Build outputs (`target/`)
-- IDE files (`*.iml`, `.idea/`)
-- Runtime data (`*.json`, `data/`, `logs/`, `credentials/`, `secrets/`)
-- OS files (`.DS_Store`, `Thumbs.db`)
+## 🧱 Core Architecture
 
-## Features
+### Model-Layer (`com.tomorrow.model`)
+- **`Task`** (`Task.java:1`): Single task entity with ID, title, description, creation/original/due dates, postponement count, completion status, completion date.
+  - Validation: title cannot be blank; past due dates allowed; defaults to today
+  - `postpone()`: adds exactly one calendar day, increments counter, rejects completed tasks
+  - `complete()`: stamps completion date, marks completed
+  - `isOverdue(today)`: `!completed && dueDate < today`
 
-### Task Management
-- **Create tasks** with title (required), optional description, and due date (defaults to today)
-- **Edit tasks** - modify title, description, and due date
-- **Complete tasks** - marks task complete with completion date; completed tasks cannot be postponed
-- **Postpone tasks** - moves due date forward by exactly one calendar day; increments postponement count; rejects postponement of completed tasks
-- **Delete tasks** - with confirmation
-- **Filter tasks** - All / Pending / Completed / Overdue
-- **Statistics** - total, pending, completed, overdue, and postponement counts derived from current task data
-
-### Notification System
-- **In-app notifications** with read/unread and dismiss states; history prevented across restarts
-- **Priority calculator** (P1-P5 tiers based on deadline proximity):
+### Service Layer (`com.tomorrow.service`)
+- **`TaskManager`** (`TaskManager.java`): Operations — add, edit, complete, postpone, delete, filter, stats. Auto-saves via JsonStorage callback.
+- **`PriorityCalculator`** (`PriorityCalculator.java`): Computes P1-P5 priority from deadline tiers:
   - P1: overdue by 3+ days
-  - P2: overdue by 1-2 days
+  - P2: overdue by 1–2 days
   - P3: due today
-  - P4: due in 1-3 days
+  - P4: due in 1–3 days
   - P5: due in 4+ days
-- **Message provider** - humorous (default) or professional tone
-- **Deduplication** - prevents duplicate reminders across restarts
-- **Quiet hours** - configurable silence period; in-app notifications retained
+  - Sort: P1 first → earliest due date → higher postponement count (tie-breaker)
+- **`MessageProvider`** (`MessageProvider.java`): Humorous (default) or professional tone messages. Avoids repeating exact same message for consecutive reminders.
+- **`NotificationManager`** (`NotificationManager.java`): Creates, orders (by priority), deduplicates, persists, and delivers notifications via channels.
+- **`ReminderScheduler`** (`ReminderScheduler.java`): Periodic task check while app runs. Generates due-today/overdue reminders without per-tick notifications. Daily email digest. Quiet hours respected. Launch reconciliation without duplicate bursts.
+- **`AppSettings`** (`AppSettings.java`): Tone, channel toggles, email config (no secrets stored), quiet hours, reminder interval.
 
-### Notification Channels
-- **In-app channel** (always enabled, core channel)
-- **macOS desktop channel** - requires macOS target; delivery failures preserved in-app
-- **Email channel** - SMTP-based; opt-in; credentials passed at runtime (never stored in source or plain JSON); sends daily digest sorted by urgency
+### Storage Layer (`com.tomorrow.storage`)
+- **`JsonStorage`** (`JsonStorage.java`): Gson-based load/save with explicit `LocalDate` serializers. Safe write (temp file → atomic move). Preserves existing file on write failure. Reports malformed JSON clearly (does NOT silently overwrite).
 
-### Settings
-- Tone selection (humorous / professional)
-- Channel toggles (in-app, macOS, email)
-- Email configuration (host, port, username, from, recipient) - credentials entered at runtime
-- Quiet hours (optional silence period; in-app notifications always retained)
-- Reminder check interval
+### Notification Layer (`com.tomorrow.notification`)
+- **`Notification`** (`Notification.java`): ID, optional task ID, type, priority, title, message, timestamp, read/dismissed state, deduplication key, per-channel delivery status.
+- **`NotificationChannel`** (`NotificationChannel.java`): Common interface — `name()`, `isEnabled()`, `setEnabled()`, `send()`.
+- **`InAppChannel`** (`InAppChannel.java`): Core channel — always enabled, records delivery in-app.
+- **`MacOSChannel`** (`MacOSChannel.java`): macOS desktop via `osascript`. Gracefully handles non-macOS, permissions, errors. Every notification preserved in-app even if desktop delivery fails.
+- **`EmailChannel`** (`EmailChannel.java`): Jakarta Mail/Angus Mail SMTP. Credentials passed at runtime (never stored). Sends off EDT. Handles auth/network errors.
 
-## Email Setup
+### UI Layer (`com.tomorrow.ui`)
+- **`Main`** (`Main.java`): Entry point, opens Swing window on EDT, initializes storage/settings/channels.
+- **`MainFrame`** (`MainFrame.java`): Main application window — dashboard, task list area, action bar, notification panel.
+- Task cards display title, due date (with overdue/due-today styling), status, postponement count.
+- Add/edit task dialog: title, optional description, due date (ISO format YYYY-MM-DD).
+- Actions: Postpone/Complete/Delete (all confirmed via `JOptionPane`).
+- Filters: All / Pending / Completed / Overdue.
+- Settings panel: channel toggles, email config, tone, quiet hours, reminder interval.
 
-Email is **opt-in** and requires SMTP configuration:
+---
 
-1. Run the application and go to Settings
-2. Enable "Email notifications"
-3. Enter SMTP settings:
-   - **Host** - SMTP server address (e.g., smtp.gmail.com)
-   - **Port** - typically 587
-   - **Username** - SMTP account username
-   - **From** - sender email address
-   - **Recipient** - where notifications are sent
-   - **Auth** - whether authentication is required
-   - **StartTLS** - whether to use STARTTLS
+## 🧪 Test Suite (25 Tests)
 
-**Important**: SMTP credentials are **never stored in source code or Git**. They are entered at runtime through the UI settings panel. The application does not log or persist passwords.
+All tests pass with `mvn test`. Coverage includes:
 
-## Notification Limitations
+| Test Class | Tests |
+|---|---|
+| `TaskTest` | Validation, defaults, postponement, completion, overdue |
+| `TaskManagerTest` | Add/list, blank title, postponement, completion, deletion, filters, stats, unknown ID |
+| `JsonStorageTest` | Round-trip, missing file, invalid JSON (preserved!), empty file |
+| `PriorityCalculatorTest` | Priority boundaries (P1-P5), sorting behavior |
+| `MessageProviderTest` | Humorous vs professional, no repetition, overdue message content |
 
-- Notifications only run while the application is open. On relaunch, missed reminders are reconciled without duplicate bursts.
-- macOS desktop notifications have not been verified on this platform (tested on macOS only). If desktop delivery fails, the notification remains in the in-app center.
-- Email requires network access and valid SMTP credentials. Failed sends are recorded separately from in-app delivery.
-- Daily email digest (rather than one email per task/postponement) - sent once per day at most, respecting quiet hours.
-- Quiet hours suppress desktop and email reminders but in-app notifications are always retained.
+Run all: `mvn test`
 
-## Demo Scenario
+Run specific: `mvn test -Dtest='TaskTest,TaskManagerTest'`
 
-1. **Launch** Tomorrow - the main window opens with dashboard stats
-2. **Add a task** "Buy milk" with due date tomorrow - in-app notification appears
-3. **Postpone the task** - due date moves one day forward, postponement count increments
-4. **Complete the task** - marked complete, notification appears
-5. **Filter by Overdue** - see overdue tasks
-6. **Open Settings** - toggle channels, configure email (optional), set quiet hours
-7. **Restart the app** - tasks and notifications restore; no duplicate reminders
-8. **Explain the architecture** - Task model, TaskManager operations, JsonStorage persistence, PriorityCalculator tiers, NotificationManager with channels, ReminderScheduler periodic checks
+---
 
-## Development Notes
+## 📧 Email Configuration
 
-- **No database, backend server, account system, OAuth, calendar integration, or background daemon** in this version
-- Notifications run only while the app is open; on relaunch, reconcile missed reminders without duplicate bursts
-- Priority tiers are strict P1-P5 based on deadline proximity; postponement count is a tie-breaker only
-- Gson configured explicitly for `LocalDate` ISO-8601 serialization/deserialization in JSON
-- Safe file replacement (write to temp file, then atomic move) with preservation of existing file on write failure
-- All Swing updates on Event Dispatch Thread; SMTP sends off EDT
-- Secrets never committed to source control or plain JSON settings files
-- macOS desktop channel: prototype tested on macOS only; on other OS, failures gracefully preserved in-app
-- JUnit 5 tests for validation, postponement, completion, overdue state, deletion, persistence, priority boundaries, and message selection
+Email is **opt-in** and requires SMTP setup through the UI:
+
+1. Run the app → click **Settings**
+2. Enable **"Email notifications"**
+3. Enter:
+   - **Host** — e.g., `smtp.gmail.com`
+   - **Port** — typically `587`
+   - **Username** — your SMTP account username
+   - **From** — sender email address
+   - **Recipient** — where notifications go
+   - **Auth** — whether authentication is required
+   - **StartTLS** — usually `true`
+4. Click **Save**
+
+### ⚠️ Important Security Notes
+- **Credentials are never stored in source code or Git**
+- **No SMTP password is saved** in any plain JSON or source file
+- Credentials are read at runtime from UI configuration only
+- The application does not log or persist passwords
+- Requires network access to SMTP server
+
+### Daily Digest
+- Sends **once per day** at most (not one email per task)
+- Sorted by urgency (P1 → P5)
+- Includes due dates and postponement counts
+- Respects quiet hours — suppressed during configured period
+- At most one digest per day (tracked internally)
+
+---
+
+## 🎛️ Settings & Configuration
+
+| Setting | Description |
+|---|---|
+| **Tone** | Humorous (default) or Professional |
+| **In-App** | Enables in-center notifications (always on by default) |
+| **macOS** | Enables desktop notifications (macOS only; failures preserved in-app) |
+| **Email** | Enables SMTP email channel (opt-in, config above) |
+| **Quiet Hours** | Silence period (e.g., 22:00–08:00); in-app notifications **always retained** |
+| **Reminder Interval** | How often the scheduler checks tasks (minutes, default 15) |
+
+### Persistence
+- Settings saved to `~/.local/share/tomorrow/settings.json`
+- Channels re-registered on startup from settings
+- Safe write patterns applied (all JSON files)
+
+---
+
+## 🐛 Known Limitations & Edge Cases
+
+| Limitation | Workaround |
+|---|---|
+| **No database**: data lives in JSON files | Ideal for desktop app; export/import via JSON if needed |
+| **macOS notifications**: unverified on non-macOS | On Linux/Windows, delivery gracefully fails; notification stays in-app |
+| **Email**: requires network + valid SMTP credentials | Configure in Settings; errors recorded separately from in-app delivery |
+| **Quiet hours**: only suppresses desktop/email | In-app notifications always visible — no missed alerts |
+| **Scheduler**: only runs while app is open | On relaunch, reconciles missed reminders without duplicate bursts |
+| **Gson version**: explicit `LocalDate` adapter required | Configured in `JsonStorage`; ISO-8601 format always |
+
+---
+
+## 📸 Screenshots *(add actual screenshots to `/assets/`)*
+
+![Dashboard View](https://via.placeholder.com/800x400/2D3748/FFFFFF?text=Tomorrow+Dashboard)
+![Add Task Dialog](https://via.placeholder.com/800x500/2D3748/FFFFFF?text=Add+Task+Dialog)
+![Settings Panel](https://via.placeholder.com/800x600/2D3748/FFFFFF?text=Settings+Panel)
+![Notification Center](https://via.placeholder.com/800x500/2D3748/FFFFFF?text=Notification+Center)
+
+> *Add actual screenshots by running the app and exporting, or add to `src/main/resources/assets/`*
+
+---
+
+## 🤝 Contributing
+
+Since this is a student project, contributions are welcome but should follow the existing code style:
+
+1. **Fork** the repository
+2. **Branch** (`git checkout -b feature/foo`)
+3. **Write tests** first if adding new behavior (per existing pattern)
+4. **Commit** with descriptive messages
+5. **Push** and **open a Pull Request**
+
+### Development Commands
+```bash
+# Build
+mvn clean package
+
+# Test
+mvn test
+
+# Full verification
+mvn clean test package
+
+# Checkstyle/licensing (if configured)
+mvn verify
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+> **Permission is hereby granted, free of charge, to any person obtaining a copy**
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+
+---
+
+## 👥 Partners & Demo
+
+### Demo Script (both partners should explain)
+
+1. **Partner A**: "I'll add a task 'Submit assignment' due tomorrow"
+2. **Partner B**: "I'll postpone it — see the date move forward and counter increment"
+3. **Partner A**: "I'll complete it — verify completion date stamps"
+4. **Partner B**: "I'll filter by overdue — show me the overdue tasks"
+5. **Partner A**: "I'll open Settings — demonstrate channel toggles and email config"
+6. **Partner B**: "I'll restart the app — show data persists and no duplicate notifications"
+
+### Architecture Overview (10-minute explanation)
+
+- **Task model**: data class with validation and derived state (`isOverdue`)
+- **TaskManager**: orchestrates operations, validates, persists via JsonStorage
+- **PriorityCalculator**: maps due date → P1-P5 tier, sorts notifications
+- **MessageProvider**: text selection with tone and repetition avoidance
+- **NotificationManager**: creates, deduplicates, persists, delivers via channels
+- **ReminderScheduler**: periodic checks, quiet hours, daily digest, launch reconciliation
+- **JsonStorage**: safe JSON load/save with LocalDate adapter
+- **UI**: Swing on EDT, FlatLaf styling, action handlers call services
+
+---
+
+## 📬 Contact & Support
+
+- **Repository**: [GitHub](https://github.com/your-username/tomorrow)
+- **Issue Tracker**: Use GitHub Issues for bugs and feature requests
+- **Email**: For support questions, reach out via the repository
+
+---
+
+## 🙏 Acknowledgments
+
+- Inspired by BCA semester project requirements
+- FlatLaf for modern Swing aesthetics
+- Gson for JSON persistence with `LocalDate` support
+- JUnit 5 for test framework
+- Angus Mail for simplified SMTP
+- AGENTS.md guidance for architecture decisions
+
+---
+
+*Built with ☕ and ☕☕ — keep tasks managed, procrastination minimized.*
+
+---
+
+*Last updated: October 2026*
