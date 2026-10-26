@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MessageProvider {
     public enum Tone { HUMOROUS, PROFESSIONAL }
 
-    private final Tone tone;
+    private volatile Tone tone;
     // last message used per (taskId, type) to avoid immediate repetition
     private final Map<String, String> lastMessage = new ConcurrentHashMap<>();
 
@@ -22,77 +22,98 @@ public class MessageProvider {
     }
 
     public MessageProvider(Tone tone) {
-        this.tone = tone;
+        this.tone = tone != null ? tone : Tone.HUMOROUS;
     }
 
     public Tone getTone() {
         return tone;
     }
 
+    public void setTone(Tone tone) {
+        this.tone = tone != null ? tone : Tone.HUMOROUS;
+    }
+
+    private String safeTitle(Task task) {
+        if (task == null || task.getTitle() == null || task.getTitle().isBlank()) return "Untitled Task";
+        return task.getTitle();
+    }
+
+    private String safeId(Task task) {
+        if (task == null || task.getId() == null) return "task";
+        return task.getId();
+    }
+
     public String created(Task task) {
+        String title = safeTitle(task);
         List<String> humorous = List.of(
-                "New task added: \"" + task.getTitle() + "\". Future you will deal with it.",
-                "Task \"" + task.getTitle() + "\" created. Procrastination officially scheduled.",
-                "Added \"" + task.getTitle() + "\". It's not late yet — enjoy it while it lasts.");
+                "New task added: \"" + title + "\". Future you will deal with it.",
+                "Task \"" + title + "\" created. Procrastination officially scheduled.",
+                "Added \"" + title + "\". It's not late yet — enjoy it while it lasts.");
         List<String> professional = List.of(
-                "Task created: " + task.getTitle(),
-                "A new task has been added: " + task.getTitle(),
-                "Task \"" + task.getTitle() + "\" is now tracked.");
-        return pick(task.getId() + ":created", humorous, professional);
+                "Task created: " + title,
+                "A new task has been added: " + title,
+                "Task \"" + title + "\" is now tracked.");
+        return pick(safeId(task) + ":created", humorous, professional);
     }
 
     public String postponed(Task task) {
+        String title = safeTitle(task);
+        LocalDate due = task != null && task.getDueDate() != null ? task.getDueDate() : LocalDate.now();
+        int postCount = task != null ? task.getPostponementCount() : 1;
         List<String> humorous = List.of(
-                "\"" + task.getTitle() + "\" pushed to " + task.getDueDate()
+                "\"" + title + "\" pushed to " + due
                         + ". Tomorrow's problem is now literally tomorrow.",
-                "Postponed \"" + task.getTitle() + "\" (attempt #"
-                        + task.getPostponementCount() + "). The deadline retreats.",
-                "\"" + task.getTitle() + "\" is now due " + task.getDueDate()
+                "Postponed \"" + title + "\" (attempt #"
+                        + postCount + "). The deadline retreats.",
+                "\"" + title + "\" is now due " + due
                         + ". Denial is a valid strategy.");
         List<String> professional = List.of(
-                "Task postponed: " + task.getTitle() + ", new due date " + task.getDueDate(),
-                "\"" + task.getTitle() + "\" has been postponed (postponement #"
-                        + task.getPostponementCount() + ").",
-                "Due date updated to " + task.getDueDate() + " for task " + task.getTitle());
-        return pick(task.getId() + ":postponed", humorous, professional);
+                "Task postponed: " + title + ", new due date " + due,
+                "\"" + title + "\" has been postponed (postponement #"
+                        + postCount + ").",
+                "Due date updated to " + due + " for task " + title);
+        return pick(safeId(task) + ":postponed", humorous, professional);
     }
 
     public String dueToday(Task task) {
+        String title = safeTitle(task);
         List<String> humorous = List.of(
-                "\"" + task.getTitle() + "\" is due today. Do it now, or don't — we won't tell.",
-                "Heads up: \"" + task.getTitle() + "\" expires today. Tick tock.",
-                "\"" + task.getTitle() + "\" is due today. The future has arrived.");
+                "\"" + title + "\" is due today. Do it now, or don't — we won't tell.",
+                "Heads up: \"" + title + "\" expires today. Tick tock.",
+                "\"" + title + "\" is due today. The future has arrived.");
         List<String> professional = List.of(
-                "Task due today: " + task.getTitle(),
-                "\"" + task.getTitle() + "\" is due today.",
-                "Reminder: " + task.getTitle() + " is due today.");
-        return pick(task.getId() + ":dueToday", humorous, professional);
+                "Task due today: " + title,
+                "\"" + title + "\" is due today.",
+                "Reminder: " + title + " is due today.");
+        return pick(safeId(task) + ":dueToday", humorous, professional);
     }
 
     public String overdue(Task task, LocalDate today, long daysOverdue) {
+        String title = safeTitle(task);
         List<String> humorous = List.of(
-                "\"" + task.getTitle() + "\" is " + daysOverdue + " day(s) overdue. "
+                "\"" + title + "\" is " + daysOverdue + " day(s) overdue. "
                         + "It misses you.",
-                "Overdue: \"" + task.getTitle() + "\". The due date gave up on you.",
-                "\"" + task.getTitle() + "\" was due " + daysOverdue + " day(s) ago. "
+                "Overdue: \"" + title + "\". The due date gave up on you.",
+                "\"" + title + "\" was due " + daysOverdue + " day(s) ago. "
                         + "It's fine. Probably.");
         List<String> professional = List.of(
-                "Task overdue: " + task.getTitle() + " (" + daysOverdue + " day(s) overdue)",
-                "\"" + task.getTitle() + "\" is overdue by " + daysOverdue + " day(s).",
-                "Overdue task: " + task.getTitle());
-        return pick(task.getId() + ":overdue", humorous, professional);
+                "Task overdue: " + title + " (" + daysOverdue + " day(s) overdue)",
+                "\"" + title + "\" is overdue by " + daysOverdue + " day(s).",
+                "Overdue task: " + title);
+        return pick(safeId(task) + ":overdue", humorous, professional);
     }
 
     public String completed(Task task) {
+        String title = safeTitle(task);
         List<String> humorous = List.of(
-                "Completed: \"" + task.getTitle() + "\". A rare and glorious event.",
-                "\"" + task.getTitle() + "\" marked complete. Productivity: unlocked.",
-                "You finished \"" + task.getTitle() + "\". Take a bow (or a nap).");
+                "Completed: \"" + title + "\". A rare and glorious event.",
+                "\"" + title + "\" marked complete. Productivity: unlocked.",
+                "You finished \"" + title + "\". Take a bow (or a nap).");
         List<String> professional = List.of(
-                "Task completed: " + task.getTitle(),
-                "\"" + task.getTitle() + "\" has been marked complete.",
-                "Task " + task.getTitle() + " is now complete.");
-        return pick(task.getId() + ":completed", humorous, professional);
+                "Task completed: " + title,
+                "\"" + title + "\" has been marked complete.",
+                "Task " + title + " is now complete.");
+        return pick(safeId(task) + ":completed", humorous, professional);
     }
 
     private String pick(String key, List<String> humorous, List<String> professional) {

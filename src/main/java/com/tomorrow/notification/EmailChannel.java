@@ -32,14 +32,25 @@ public class EmailChannel implements NotificationChannel {
         this.recipient = recipient;
         this.auth = auth;
         this.starttls = starttls;
-        props.put("mail.smtp.host", host);
+        props.clear();
+        if (host != null && !host.isBlank()) {
+            props.put("mail.smtp.host", host);
+        }
         props.put("mail.smtp.port", String.valueOf(port));
         props.put("mail.smtp.auth", String.valueOf(auth));
         props.put("mail.smtp.starttls.enable", String.valueOf(starttls));
+        props.put("mail.smtp.connectiontimeout", "5000");
+        props.put("mail.smtp.timeout", "5000");
+    }
+
+    public void setPassword(char[] password) {
+        this.password = password == null ? new char[0] : password.clone();
     }
 
     public void clearPassword() {
-        Arrays.fill(password, ' ');
+        if (password != null) {
+            Arrays.fill(password, ' ');
+        }
     }
 
     @Override
@@ -58,7 +69,27 @@ public class EmailChannel implements NotificationChannel {
     }
 
     public boolean isConfigured() {
-        return host != null && recipient != null && from != null;
+        return host != null && !host.isBlank()
+                && recipient != null && !recipient.isBlank()
+                && from != null && !from.isBlank();
+    }
+
+    public boolean sendTestEmail(String targetRecipient) {
+        Notification testNotif = new Notification();
+        testNotif.setTitle("Test Email");
+        testNotif.setMessage("This is a test notification from Tomorrow. Your SMTP settings are working properly!");
+        String origRecipient = this.recipient;
+        boolean wasEnabled = this.enabled;
+        try {
+            if (targetRecipient != null && !targetRecipient.isBlank()) {
+                this.recipient = targetRecipient.trim();
+            }
+            this.enabled = true;
+            return send(testNotif);
+        } finally {
+            this.recipient = origRecipient;
+            this.enabled = wasEnabled;
+        }
     }
 
     public boolean send(Notification notification) {

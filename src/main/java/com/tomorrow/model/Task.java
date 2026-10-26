@@ -114,6 +114,9 @@ public class Task {
         if (completed) {
             throw new IllegalStateException("Completed tasks cannot be postponed.");
         }
+        if (this.dueDate == null) {
+            this.dueDate = LocalDate.now();
+        }
         this.dueDate = this.dueDate.plusDays(1);
         this.postponementCount++;
     }
@@ -130,7 +133,10 @@ public class Task {
      * A task is overdue when incomplete and its current due date is before today.
      */
     public boolean isOverdue(LocalDate today) {
-        return !completed && dueDate.isBefore(today);
+        if (today == null) {
+            today = LocalDate.now();
+        }
+        return !completed && dueDate != null && dueDate.isBefore(today);
     }
 
     @Override

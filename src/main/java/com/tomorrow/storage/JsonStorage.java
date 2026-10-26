@@ -8,6 +8,7 @@ import com.tomorrow.notification.Notification;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.*;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -20,6 +21,7 @@ public class JsonStorage {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final Gson GSON = new GsonBuilder()
             .registerTypeAdapter(LocalDate.class, new LocalDateAdapter())
+            .registerTypeAdapter(Instant.class, new InstantAdapter())
             .setPrettyPrinting()
             .create();
 
@@ -68,7 +70,7 @@ public class JsonStorage {
     }
 
     public void saveSettings(Map<String, Object> settings) {
-        saveList(settingsFile, List.of(settings));
+        saveObject(settingsFile, settings != null ? settings : Map.of());
     }
 
     /* ---------------- generic ---------------- */
@@ -118,12 +120,20 @@ public class JsonStorage {
     }
 
     private <T> void saveList(Path file, List<T> list) {
+        saveObject(file, list);
+    }
+
+    private void saveObject(Path file, Object obj) {
         try {
             Files.createDirectories(dataDir);
-            String json = GSON.toJson(list);
+            String json = GSON.toJson(obj);
             Path temp = file.resolveSibling(file.getFileName() + ".tmp");
             Files.writeString(temp, json);
-            Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            try {
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             throw new StorageException("Failed to write " + file.getFileName() + ": " + e.getMessage(), e);
         }
@@ -138,6 +148,18 @@ public class JsonStorage {
         @Override
         public LocalDate deserialize(JsonElement json, Type type, JsonDeserializationContext ctx) {
             return LocalDate.parse(json.getAsString(), DATE_FMT);
+        }
+    }
+
+    public static class InstantAdapter implements JsonSerializer<Instant>, JsonDeserializer<Instant> {
+        @Override
+        public JsonElement serialize(Instant instant, Type type, JsonSerializationContext ctx) {
+            return new JsonPrimitive(instant.toString());
+        }
+
+        @Override
+        public Instant deserialize(JsonElement json, Type type, JsonDeserializationContext ctx) {
+            return Instant.parse(json.getAsString());
         }
     }
 

@@ -37,19 +37,25 @@ try {
                 }
                 NotificationManager notifMgr = new NotificationManager(storage,
                         new MessageProvider(settings.getTone()));
+                notifMgr.setSettings(settings);
                 // register channels from settings
                 if (settings.isInAppEnabled()) notifMgr.register(new InAppChannel());
-                if (settings.isMacOSEnabled()) notifMgr.register(new MacOSChannel());
+                if (settings.isMacOSEnabled()) {
+                    MacOSChannel mac = new MacOSChannel();
+                    mac.setEnabled(true);
+                    notifMgr.register(mac);
+                }
                 if (settings.isEmailEnabled()) {
                     EmailChannel email = new EmailChannel();
                     email.setSmtp(settings.getEmailHost(), settings.getEmailPort(),
                             settings.getEmailUsername(), new char[0],
                             settings.getEmailFrom(), settings.getEmailRecipient(),
                             settings.isEmailAuth(), settings.isEmailStarttls());
+                    email.setEnabled(true);
                     notifMgr.register(email);
                 }
 
-                MainFrame frame = new MainFrame(taskManager, notifMgr, settings);
+                MainFrame frame = new MainFrame(taskManager, notifMgr, settings, storage);
                 frame.setVisible(true);
             } catch (Exception e) {
                 e.printStackTrace();

@@ -71,9 +71,10 @@ public class AppSettings {
     }
 
     public boolean inQuietHours(LocalTime now) {
-        if (!quietHoursEnabled) return false;
-        LocalTime start = quietHoursStart;
-        LocalTime end = quietHoursEnd;
+        if (!quietHoursEnabled || now == null) return false;
+        LocalTime start = quietHoursStart != null ? quietHoursStart : LocalTime.of(22, 0);
+        LocalTime end = quietHoursEnd != null ? quietHoursEnd : LocalTime.of(8, 0);
+        if (start.equals(end)) return true;
         if (start.isBefore(end)) {
             return !now.isBefore(start) && now.isBefore(end);
         }
@@ -87,41 +88,74 @@ public class AppSettings {
         m.put("inAppEnabled", inAppEnabled);
         m.put("macOSEnabled", macOSEnabled);
         m.put("emailEnabled", emailEnabled);
-        m.put("emailHost", emailHost);
+        m.put("emailHost", emailHost != null ? emailHost : "");
         m.put("emailPort", emailPort);
-        m.put("emailUsername", emailUsername);
-        m.put("emailFrom", emailFrom);
-        m.put("emailRecipient", emailRecipient);
+        m.put("emailUsername", emailUsername != null ? emailUsername : "");
+        m.put("emailFrom", emailFrom != null ? emailFrom : "");
+        m.put("emailRecipient", emailRecipient != null ? emailRecipient : "");
         m.put("emailAuth", emailAuth);
         m.put("emailStarttls", emailStarttls);
         m.put("quietHoursEnabled", quietHoursEnabled);
-        m.put("quietHoursStart", quietHoursStart.toString());
-        m.put("quietHoursEnd", quietHoursEnd.toString());
+        m.put("quietHoursStart", quietHoursStart != null ? quietHoursStart.toString() : "22:00");
+        m.put("quietHoursEnd", quietHoursEnd != null ? quietHoursEnd.toString() : "08:00");
         m.put("reminderCheckIntervalMinutes", reminderCheckIntervalMinutes);
         return m;
     }
 
     public static AppSettings fromMap(Map<String, Object> m) {
         AppSettings s = new AppSettings();
-        if (m == null) return s;
-        Object v;
-        if ((v = m.get("tone")) != null) s.setTone(MessageProvider.Tone.valueOf(String.valueOf(v)));
-        if ((v = m.get("inAppEnabled")) != null) s.setInAppEnabled(Boolean.parseBoolean(String.valueOf(v)));
-        if ((v = m.get("macOSEnabled")) != null) s.setMacOSEnabled(Boolean.parseBoolean(String.valueOf(v)));
-        if ((v = m.get("emailEnabled")) != null) s.setEmailEnabled(Boolean.parseBoolean(String.valueOf(v)));
-        if ((v = m.get("emailHost")) != null) s.setEmailHost(String.valueOf(v));
-        if ((v = m.get("emailPort")) != null) s.setEmailPort(Integer.parseInt(String.valueOf(v)));
-        if ((v = m.get("emailUsername")) != null) s.setEmailUsername(String.valueOf(v));
-        if ((v = m.get("emailFrom")) != null) s.setEmailFrom(String.valueOf(v));
-        if ((v = m.get("emailRecipient")) != null) s.setEmailRecipient(String.valueOf(v));
-        if ((v = m.get("emailAuth")) != null) s.setEmailAuth(Boolean.parseBoolean(String.valueOf(v)));
-        if ((v = m.get("emailStarttls")) != null) s.setEmailStarttls(Boolean.parseBoolean(String.valueOf(v)));
-        if ((v = m.get("quietHoursEnabled")) != null) s.setQuietHoursEnabled(Boolean.parseBoolean(String.valueOf(v)));
-        if ((v = m.get("quietHoursStart")) != null) s.setQuietHoursStart(LocalTime.parse(String.valueOf(v)));
-        if ((v = m.get("quietHoursEnd")) != null) s.setQuietHoursEnd(LocalTime.parse(String.valueOf(v)));
-        if ((v = m.get("reminderCheckIntervalMinutes")) != null) {
-            s.setReminderCheckIntervalMinutes(Integer.parseInt(String.valueOf(v)));
+        if (m == null || m.isEmpty()) return s;
+        if (m.containsKey("tone")) s.setTone(parseToneSafe(m.get("tone"), MessageProvider.Tone.HUMOROUS));
+        if (m.containsKey("inAppEnabled")) s.setInAppEnabled(parseBooleanSafe(m.get("inAppEnabled"), true));
+        if (m.containsKey("macOSEnabled")) s.setMacOSEnabled(parseBooleanSafe(m.get("macOSEnabled"), false));
+        if (m.containsKey("emailEnabled")) s.setEmailEnabled(parseBooleanSafe(m.get("emailEnabled"), false));
+        if (m.containsKey("emailHost")) s.setEmailHost(String.valueOf(m.get("emailHost")));
+        if (m.containsKey("emailPort")) s.setEmailPort(parseIntSafe(m.get("emailPort"), 587));
+        if (m.containsKey("emailUsername")) s.setEmailUsername(String.valueOf(m.get("emailUsername")));
+        if (m.containsKey("emailFrom")) s.setEmailFrom(String.valueOf(m.get("emailFrom")));
+        if (m.containsKey("emailRecipient")) s.setEmailRecipient(String.valueOf(m.get("emailRecipient")));
+        if (m.containsKey("emailAuth")) s.setEmailAuth(parseBooleanSafe(m.get("emailAuth"), true));
+        if (m.containsKey("emailStarttls")) s.setEmailStarttls(parseBooleanSafe(m.get("emailStarttls"), true));
+        if (m.containsKey("quietHoursEnabled")) s.setQuietHoursEnabled(parseBooleanSafe(m.get("quietHoursEnabled"), false));
+        if (m.containsKey("quietHoursStart")) s.setQuietHoursStart(parseTimeSafe(m.get("quietHoursStart"), LocalTime.of(22, 0)));
+        if (m.containsKey("quietHoursEnd")) s.setQuietHoursEnd(parseTimeSafe(m.get("quietHoursEnd"), LocalTime.of(8, 0)));
+        if (m.containsKey("reminderCheckIntervalMinutes")) {
+            s.setReminderCheckIntervalMinutes(parseIntSafe(m.get("reminderCheckIntervalMinutes"), 15));
         }
         return s;
+    }
+
+    private static int parseIntSafe(Object v, int defaultValue) {
+        if (v == null) return defaultValue;
+        if (v instanceof Number n) return n.intValue();
+        try {
+            return (int) Double.parseDouble(String.valueOf(v).trim());
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private static boolean parseBooleanSafe(Object v, boolean defaultValue) {
+        if (v == null) return defaultValue;
+        if (v instanceof Boolean b) return b;
+        return Boolean.parseBoolean(String.valueOf(v).trim());
+    }
+
+    private static LocalTime parseTimeSafe(Object v, LocalTime defaultValue) {
+        if (v == null) return defaultValue;
+        try {
+            return LocalTime.parse(String.valueOf(v).trim());
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private static MessageProvider.Tone parseToneSafe(Object v, MessageProvider.Tone defaultValue) {
+        if (v == null) return defaultValue;
+        try {
+            return MessageProvider.Tone.valueOf(String.valueOf(v).trim().toUpperCase());
+        } catch (Exception e) {
+            return defaultValue;
+        }
     }
 }

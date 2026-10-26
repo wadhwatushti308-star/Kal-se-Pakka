@@ -1,13 +1,11 @@
 package com.tomorrow.notification;
 
-import java.io.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * macOS desktop notification channel. Uses osascript to display a notification via
  * AppleScript when available. Delivery failures are recorded but never propagated as
  * exceptions; the notification remains in the in-app center.
- * <p>
- * NOTE: macOS delivery has not been verified on a target Mac. Treat as unverified.
  */
 public class MacOSChannel implements NotificationChannel {
     private boolean enabled = false;
@@ -30,39 +28,46 @@ public class MacOSChannel implements NotificationChannel {
     @Override
     public boolean send(Notification notification) {
         if (!enabled || !isSupported()) {
-            notification.setChannelStatus(name(), false);
+            if (notification != null) {
+                notification.setChannelStatus(name(), false);
+            }
             return false;
         }
         try {
+            String title = notification.getTitle() != null ? notification.getTitle() : "Tomorrow";
+            String msg = notification.getMessage() != null ? notification.getMessage() : "";
             ProcessBuilder pb = new ProcessBuilder(
                     "osascript", "-e",
-                    "display notification \"" + escape(notification.getMessage()) + "\" "
-                            + "with title \"" + escape(notification.getTitle()) + "\"");
+                    "display notification \"" + escape(msg) + "\" with title \"" + escape(title) + "\"");
             Process p = pb.start();
-            int code = p.waitFor();
-            boolean ok = code == 0;
+            boolean finished = p.waitFor(3, TimeUnit.SECONDS);
+            if (!finished) {
+                p.destroyForcibly();
+                notification.setChannelStatus(name(), false);
+                return false;
+            }
+            boolean ok = p.exitValue() == 0;
             notification.setChannelStatus(name(), ok);
             return ok;
         } catch (Exception e) {
-            notification.setChannelStatus(name(), false);
+            if (notification != null) {
+                notification.setChannelStatus(name(), false);
+            }
             return false;
         }
     }
 
-    private boolean isSupported() {
-        try {
-            Process p = new ProcessBuilder("uname", "-s").start();
-            p.waitFor();
-            BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String os = r.readLine();
-            return "Darwin".equalsIgnoreCase(os);
-        } catch (Exception e) {
-            return false;
-        }
+    public boolean isSupported() {
+        String os = System.getProperty("os.name");
+        return os != null && os.toLowerCase().contains("mac");
     }
 
     private static String escape(String s) {
         if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .trim();
     }
 }

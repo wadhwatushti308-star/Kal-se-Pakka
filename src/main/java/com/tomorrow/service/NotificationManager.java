@@ -5,7 +5,10 @@ import com.tomorrow.notification.*;
 import com.tomorrow.storage.JsonStorage;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -17,6 +20,12 @@ public class NotificationManager {
     private final PriorityCalculator priorityCalc = new PriorityCalculator();
     private final MessageProvider messageProvider;
     private final Map<String, NotificationChannel> channels = new LinkedHashMap<>();
+    private volatile AppSettings settings;
+    private final ExecutorService asyncDeliveryExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "tomorrow-notification-delivery");
+        t.setDaemon(true);
+        return t;
+    });
 
     public NotificationManager(JsonStorage storage, MessageProvider messageProvider) {
         this.storage = storage;
@@ -24,8 +33,28 @@ public class NotificationManager {
         register(new InAppChannel());
     }
 
+    public void setSettings(AppSettings settings) {
+        this.settings = settings;
+    }
+
+    public MessageProvider getMessageProvider() {
+        return messageProvider;
+    }
+
     public void register(NotificationChannel channel) {
-        channels.put(channel.name(), channel);
+        if (channel != null) {
+            channels.put(channel.name(), channel);
+        }
+    }
+
+    public void unregister(String name) {
+        if (name != null) {
+            channels.remove(name);
+        }
+    }
+
+    public void clearChannels() {
+        channels.clear();
     }
 
     public Map<String, NotificationChannel> getChannels() {
@@ -34,7 +63,9 @@ public class NotificationManager {
 
     public void load(List<Notification> loaded) {
         notifications.clear();
-        notifications.addAll(loaded != null ? loaded : List.of());
+        if (loaded != null) {
+            notifications.addAll(loaded);
+        }
     }
 
     public List<Notification> getNotifications() {
@@ -66,8 +97,10 @@ public class NotificationManager {
      * taskId:type:dueDate so restarts don't recreate the same reminder.
      */
     public void notifyTaskEvent(Task task, Notification.Type type) {
+        if (task == null) return;
         LocalDate today = LocalDate.now();
-        String dedupKey = task.getId() + ":" + type + ":" + task.getDueDate();
+        LocalDate due = task.getDueDate() != null ? task.getDueDate() : today;
+        String dedupKey = task.getId() + ":" + type + ":" + due;
 
         if (notifications.stream().anyMatch(n -> n.getDedupKey() != null
                 && n.getDedupKey().equals(dedupKey) && !n.isDismissed())) {
@@ -78,8 +111,8 @@ public class NotificationManager {
         n.setTaskId(task.getId());
         n.setTaskTitle(task.getTitle());
         n.setType(type);
-        n.setPriority(priorityCalc.priorityFor(task.getDueDate(), today));
-        n.setDueDate(task.getDueDate());
+        n.setPriority(priorityCalc.priorityFor(due, today));
+        n.setDueDate(due);
         n.setPostponementCount(task.getPostponementCount());
 
         switch (type) {
@@ -96,9 +129,9 @@ public class NotificationManager {
             case POSTPONED -> messageProvider.postponed(task);
             case DUE_TODAY -> messageProvider.dueToday(task);
             case OVERDUE -> messageProvider.overdue(task, today,
-                    today.toEpochDay() - task.getDueDate().toEpochDay());
+                    today.toEpochDay() - due.toEpochDay());
             case COMPLETED -> messageProvider.completed(task);
-            case REMINDER -> "Reminder for " + task.getTitle();
+            case REMINDER -> "Reminder for " + (task.getTitle() != null ? task.getTitle() : "Task");
         };
         n.setMessage(message);
         n.setDedupKey(dedupKey);
@@ -109,19 +142,39 @@ public class NotificationManager {
     }
 
     public void deliver(Notification n) {
-        List<NotificationChannel> failed = new ArrayList<>();
+        boolean quiet = settings != null && settings.isQuietHoursEnabled() && settings.inQuietHours(LocalTime.now());
+
         for (NotificationChannel ch : channels.values()) {
             if (!ch.isEnabled()) continue;
-            try {
-                ch.send(n);
-            } catch (Throwable t) {
-                n.setChannelStatus(ch.name(), false);
-                failed.add(ch);
+            String chName = ch.name();
+
+            // In quiet hours, suppress desktop and email notifications, but never in-app
+            if (quiet && ("macOS".equalsIgnoreCase(chName) || "email".equalsIgnoreCase(chName))) {
+                n.setChannelStatus(chName, false);
+                continue;
             }
-        }
-        if (!failed.isEmpty()) {
-            System.err.println("[Tomorrow] Notification delivery failed on channels: "
-                    + failed.stream().map(NotificationChannel::name).collect(Collectors.joining(", ")));
+
+            // By default, task creation, postponement, and completion do not send separate emails
+            if ("email".equalsIgnoreCase(chName) && n.getType() != Notification.Type.REMINDER) {
+                continue;
+            }
+
+            if ("email".equalsIgnoreCase(chName)) {
+                // Keep SMTP work strictly off the Event Dispatch Thread
+                asyncDeliveryExecutor.submit(() -> {
+                    try {
+                        ch.send(n);
+                    } catch (Throwable t) {
+                        n.setChannelStatus(chName, false);
+                    }
+                });
+            } else {
+                try {
+                    ch.send(n);
+                } catch (Throwable t) {
+                    n.setChannelStatus(chName, false);
+                }
+            }
         }
     }
 

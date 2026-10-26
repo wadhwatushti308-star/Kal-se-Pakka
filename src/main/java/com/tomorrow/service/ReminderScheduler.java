@@ -92,7 +92,6 @@ public class ReminderScheduler {
      */
     public void check() {
         LocalDate today = clock.today();
-        LocalTime now = clock.now();
 
         for (Task task : taskManager.getTasks()) {
             if (task.isCompleted()) continue;
@@ -100,10 +99,11 @@ public class ReminderScheduler {
             boolean overdueOrDue = p == Notification.Priority.P1 || p == Notification.Priority.P2
                     || p == Notification.Priority.P3;
             if (!overdueOrDue) continue;
-            if (settings.isQuietHoursEnabled() && settings.inQuietHours(now)) continue;
             notificationManager.notifyTaskEvent(task,
                     p == Notification.Priority.P3 ? Notification.Type.DUE_TODAY : Notification.Type.OVERDUE);
         }
+
+        sendDailyDigest();
     }
 
     /**
@@ -117,7 +117,7 @@ public class ReminderScheduler {
      * Send a daily digest email of pending tasks sorted by urgency. At most once per day.
      */
     public void sendDailyDigest() {
-        if (!emailChannel.isEnabled() || !emailChannel.isConfigured()) return;
+        if (emailChannel == null || !emailChannel.isEnabled() || !emailChannel.isConfigured()) return;
         LocalDate today = clock.today();
         if (lastDigestDate != null && lastDigestDate.equals(today)) return;
         LocalTime now = clock.now();

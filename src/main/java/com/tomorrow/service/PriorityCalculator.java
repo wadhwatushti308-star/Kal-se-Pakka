@@ -20,6 +20,8 @@ public class PriorityCalculator {
     public static final int P5_THRESHOLD = 4;
 
     public Notification.Priority priorityFor(LocalDate dueDate, LocalDate today) {
+        if (today == null) today = LocalDate.now();
+        if (dueDate == null) return Notification.Priority.P5;
         long days = dueDate.toEpochDay() - today.toEpochDay();
         if (days <= P1_THRESHOLD) return Notification.Priority.P1;
         if (days >= P2_LOW && days <= P2_HIGH) return Notification.Priority.P2;
@@ -29,7 +31,8 @@ public class PriorityCalculator {
     }
 
     public void sort(List<Notification> notifications) {
-        Comparator<Notification> byPriority = Comparator.comparingInt(n -> tier(n.getPriority()));
+        if (notifications == null || notifications.isEmpty()) return;
+        Comparator<Notification> byPriority = Comparator.comparingInt(n -> n.getPriority() == null ? 99 : tier(n.getPriority()));
         Comparator<Notification> byDueDate = Comparator
                 .comparing(Notification::getDueDate, Comparator.nullsLast(Comparator.naturalOrder()));
         Comparator<Notification> byPostponement = Comparator
@@ -38,6 +41,7 @@ public class PriorityCalculator {
     }
 
     private int tier(Notification.Priority p) {
+        if (p == null) return 99;
         return switch (p) {
             case P1 -> 1;
             case P2 -> 2;

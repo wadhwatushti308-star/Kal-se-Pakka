@@ -27,7 +27,7 @@ public class Notification {
     private boolean read;
     private boolean dismissed;
     private String dedupKey;
-    private final Map<String, Boolean> channelStatus = new LinkedHashMap<>();
+    private Map<String, Boolean> channelStatus = new LinkedHashMap<>();
 
     public Notification() {
         this.id = UUID.randomUUID().toString();

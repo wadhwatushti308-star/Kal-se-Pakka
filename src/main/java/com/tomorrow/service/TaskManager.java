@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -27,7 +28,6 @@ public class TaskManager {
     public void load(List<Task> loaded) {
         tasks.clear();
         tasks.addAll(loaded != null ? loaded : List.of());
-        save();
     }
 
     public Task add(String title, String description, LocalDate dueDate) {
@@ -68,10 +68,17 @@ public class TaskManager {
         save();
     }
 
+    public Optional<Task> getTask(String id) {
+        if (id == null) return Optional.empty();
+        return tasks.stream().filter(t -> t.getId().equals(id)).findFirst();
+    }
+
     public List<Task> filter(Filter filter) {
+        if (filter == null) filter = Filter.ALL;
         LocalDate today = LocalDate.now();
+        final Filter activeFilter = filter;
         return tasks.stream()
-                .filter(t -> switch (filter) {
+                .filter(t -> switch (activeFilter) {
                     case ALL -> true;
                     case PENDING -> !t.isCompleted();
                     case COMPLETED -> t.isCompleted();
@@ -100,9 +107,7 @@ public class TaskManager {
     public record Stats(int total, int pending, int completed, int overdue, int postponements) {}
 
     private Task find(String id) {
-        return tasks.stream()
-                .filter(t -> t.getId().equals(id))
-                .findFirst()
+        return getTask(id)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown task id: " + id));
     }
 
